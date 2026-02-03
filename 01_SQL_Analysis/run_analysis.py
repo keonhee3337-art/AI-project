@@ -68,6 +68,25 @@ def run_analysis():
         """
         write_query("Q4: PASSIVE MEMBER ANALYSIS", sql_q4)
 
+        # --- Q5: MOMENTUM CHECK (WINDOW FUNCTIONS) ---
+        # Logic: Monthly Attendance -> LAG() to get previous month -> Calculate Delta
+        sql_q5 = """
+        WITH MonthlyStats AS (
+            SELECT strftime('%Y-%m', e.date) as month, COUNT(*) as visits
+            FROM attendance a
+            JOIN events e ON a.event_id = e.event_id
+            GROUP BY month
+        )
+        SELECT 
+            month, 
+            visits,
+            LAG(visits, 1, 0) OVER (ORDER BY month) as previous_month_visits,
+            (visits - LAG(visits, 1, 0) OVER (ORDER BY month)) as growth_delta
+        FROM MonthlyStats
+        ORDER BY month ASC
+        """
+        write_query("Q5: MONTH-OVER-MONTH GROWTH", sql_q5)
+
     conn.close()
     print("SUCCESS: Report generated at 'Executive_Brief.txt'")
 
