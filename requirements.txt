@@ -9,3 +9,4 @@ openpyxl
 seaborn
 matplotlib
 xlsxwriter
+plotly
