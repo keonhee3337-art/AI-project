@@ -4,3 +4,8 @@ python-dotenv
 pypdf
 pandas
 matplotlib
+dart-fss
+openpyxl
+seaborn
+matplotlib
+xlsxwriter
