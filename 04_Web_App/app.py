@@ -1,13 +1,34 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
 from openai import OpenAI
 from pypdf import PdfReader
 
-# 1. Load Secrets
-load_dotenv()
+# --- SECURITY & CONFIGURATION ---
+# We wrap this in a try-except block.
+# On your laptop, it loads .env.
+# On the Cloud, it skips this because .env doesn't exist there.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # This means we are on the cloud, so we pass
+    pass
+
+# Try to get key from Environment (Laptop) OR Streamlit Secrets (Cloud)
 api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
+
+# If os.getenv failed, try Streamlit's native secret manager
+if not api_key:
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except:
+        pass
+
+# Initialize Client only if key exists
+client = None
+if api_key:
+    client = OpenAI(api_key=api_key)
+# -------------------------------
 
 # 2. Helper Function: Read PDF
 def get_pdf_text(uploaded_file):
@@ -33,7 +54,6 @@ with st.sidebar:
     
     if uploaded_file:
         st.success("File Loaded Successfully!")
-        # Extract text immediately
         if 'pdf_text' not in st.session_state:
             with st.spinner("Reading document..."):
                 st.session_state.pdf_text = get_pdf_text(uploaded_file)
@@ -42,36 +62,35 @@ with st.sidebar:
 # 5. The Chat Interface
 user_query = st.text_input("Ask a question about the document:")
 
-# FIX: Single Button Logic
 if st.button("Analyze Document"):
     if not uploaded_file:
         st.warning("⚠️ Please upload a PDF in the sidebar first.")
     elif not api_key:
-        st.error("ERROR: No API Key found. Check your .env file!")
+        st.error("🚨 CRITICAL ERROR: API Key is missing. Please configure secrets on Streamlit Cloud.")
     else:
         with st.spinner("Consulting the Partners..."):
-            # The Brain
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": f"""
-                        You are a Senior Consultant. Answer ONLY based on the document below.
-                        If the answer is missing, say "Data not found in source."
-                        
-                        DOCUMENT CONTEXT:
-                        {st.session_state.pdf_text[:40000]} 
-                        """
-                    },
-                    {
-                        "role": "user", 
-                        "content": user_query
-                    }
-                ]
-            )
-            
-            # The Output
-            answer = response.choices[0].message.content
-            st.markdown("### 💡 Partner Insight")
-            st.write(answer)
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "system", 
+                            "content": f"""
+                            You are a Senior Consultant. Answer ONLY based on the document below.
+                            If the answer is missing, say "Data not found in source."
+                            
+                            DOCUMENT CONTEXT:
+                            {st.session_state.pdf_text[:40000]} 
+                            """
+                        },
+                        {
+                            "role": "user", 
+                            "content": user_query
+                        }
+                    ]
+                )
+                answer = response.choices[0].message.content
+                st.markdown("### 💡 Partner Insight")
+                st.write(answer)
+            except Exception as e:
+                st.error(f"API Error: {e}")
