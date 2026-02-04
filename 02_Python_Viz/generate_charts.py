@@ -1,47 +1,60 @@
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
-def create_growth_chart():
-    # 1. Connect to the Database
-    conn = sqlite3.connect('club_data.db')
+# 1. Connect to Database
+db_path = "club_data.db"
+
+def plot_growth_trajectory():
+    print("--- 1. CONNECTING TO SQL ---")
+    conn = sqlite3.connect(db_path)
     
-    # 2. Run the "Growth" Query (Same as Q5)
+    # 2. The Query: Get Monthly Volume
+    # FIX: We use COUNT(*) to count rows regardless of column names
     query = """
-    WITH MonthlyStats AS (
-        SELECT strftime('%Y-%m', e.date) as month, COUNT(*) as visits
-        FROM attendance a
-        JOIN events e ON a.event_id = e.event_id
-        GROUP BY month
-    )
-    SELECT month, visits FROM MonthlyStats ORDER BY month
+    SELECT 
+        strftime('%Y-%m', e.date) as month, 
+        COUNT(*) as monthly_volume
+    FROM attendance a
+    JOIN events e ON a.event_id = e.event_id
+    GROUP BY month
+    ORDER BY month
     """
     
-    # 3. Load into Pandas DataFrame (The "Excel" of Python)
+    # 3. Load Data
     df = pd.read_sql_query(query, conn)
     conn.close()
     
-    # 4. Setup the Plot (The "McKinsey Style" Look)
-    plt.figure(figsize=(10, 6))
-    plt.plot(df['month'], df['visits'], marker='o', linestyle='-', color='#005eb8', linewidth=2)
+    if df.empty:
+        print("Error: No data found.")
+        return
+
+    # 4. The "Hockey Stick" Math (Cumulative Sum)
+    df['cumulative_volume'] = df['monthly_volume'].cumsum()
     
-    # 5. Add Labels
-    plt.title('Member Engagement Trends (MoM)', fontsize=14, fontweight='bold')
-    plt.xlabel('Month', fontsize=12)
-    plt.ylabel('Total Visits', fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.7)
+    print("--- 2. GENERATING STRATEGIC CHART ---")
+    
+    # 5. Draw the Chart
+    plt.figure(figsize=(10, 6))
+    
+    # Plotting the Cumulative Line
+    plt.plot(df['month'], df['cumulative_volume'], marker='o', linestyle='-', color='#0052cc', linewidth=3)
+    plt.fill_between(df['month'], df['cumulative_volume'], color='#0052cc', alpha=0.1)
+    
+    # Styling
+    plt.title("Cumulative Operational Scale (Member Sessions)", fontsize=16, fontweight='bold')
+    plt.xlabel("Timeline", fontsize=12)
+    plt.ylabel("Total Sessions Delivered", fontsize=12)
+    plt.grid(True, linestyle='--', alpha=0.5)
     plt.xticks(rotation=45)
     
-    # 6. Annotate the Peak
-    peak_visits = df['visits'].max()
-    peak_month = df.loc[df['visits'].idxmax(), 'month']
-    plt.annotate(f'Peak: {peak_visits}', xy=(peak_month, peak_visits), xytext=(peak_month, peak_visits+5),
-                 arrowprops=dict(facecolor='black', shrink=0.05))
-
-    # 7. Save
+    # Save
     plt.tight_layout()
-    plt.savefig('02_Python_Viz/engagement_trend.png')
-    print("SUCCESS: Chart generated at '02_Python_Viz/engagement_trend.png'")
+    plt.savefig("02_Python_Viz/growth_chart.png")
+    print(f"SUCCESS: Chart saved to '02_Python_Viz/growth_chart.png'")
+    print(f"Current Cumulative Volume: {df['cumulative_volume'].iloc[-1]}")
 
+# --- EXECUTION BLOCK ---
 if __name__ == "__main__":
-    create_growth_chart()
+    plot_growth_trajectory()
